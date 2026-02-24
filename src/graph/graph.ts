@@ -5,7 +5,15 @@ import { notesAgentNode } from "../agents/notes-agent";
 import { searchAgentNode } from "../agents/search-agent";
 import { synthesizerNode } from "../agents/synthesizer";
 import { mediaAgentNode } from "../agents/media-agent";
+import { memoryRetrieveNode, memoryStoreNode } from "../agents/memory-agent";
 
+
+function nextInQueue(state: GraphState, afterAgent: string): string {
+    const queue = state.agentQueue;
+    const idx = queue.indexOf(afterAgent as any);
+    const next = queue[idx + 1];
+    return next ?? "synthesizer";
+};
 
 // Routing Logic
 // After orchestrator decides, send to first agent in queue
@@ -15,75 +23,56 @@ function routeFromOrchestrator(state: GraphState): string {
     return first;
 }
 
-// After notes agent, check if search should follow
-function routeAfterNotes(state: GraphState): string {
-    const queue = state.agentQueue;
-    const searchIdx = queue.indexOf("search-agent");
-    if (searchIdx !== -1) return "search-agent";
-    const mediaIdx = queue.indexOf("media-agent");
-    if (mediaIdx !== -1) return "media-agent";
-    return "synthesizer";
-}
-
-// After search agent, check if media should follow
-function routeAfterSearch(state: GraphState): string {
-    const queue = state.agentQueue;
-    const mediaIdx = queue.indexOf("media-agent");
-    if (mediaIdx !== -1) return "media-agent";
-    return "synthesizer";
-}
-
 // Build and compile the graph
 export function buildGraph() {
     const graph = new StateGraph(AgentState)
-        // Add all nodes
+
+        // Memorynodes
+        .addNode("memory-retrieve", memoryRetrieveNode)
+        .addNode("memory-store", memoryStoreNode)
+
+        // Core agents
         .addNode("orchestrator", orchestratorNode)
         .addNode("notes-agent", notesAgentNode)
         .addNode("search-agent", searchAgentNode)
         .addNode("media-agent", mediaAgentNode)
         .addNode("synthesizer", synthesizerNode)
 
-        // Entry point
-        .addEdge("__start__", "orchestrator")
-
-        // Orchestrator routes to first agent
-        .addConditionalEdges(
-            "orchestrator",
-            routeFromOrchestrator,
-            {
-                "notes-agent": "notes-agent",
-                "search-agent": "search-agent",
-                "media-agent": "media-agent",
-                synthesizer: "synthesizer",
-            }
-        )
+        // Flow: memory-retrieve -> orchestrator -> ... -> memory-store
+        .addEdge("__start__", "memory-retrieve")
+        .addEdge("memory-retrieve", "orchestrator")
 
         // After notes -> maybe search or synthesizer
-        .addConditionalEdges(
-            "notes-agent",
-            routeAfterNotes,
+        .addConditionalEdges("orchestrator", routeFromOrchestrator, {
+            "notes-agent": "notes-agent",
+            "search-agent": "search-agent",
+            "media-agent": "media-agent",
+            "synthesizer": "synthesizer",
+        })
+
+        .addConditionalEdges("notes-agent",
+            (s) => nextInQueue(s, "notes-agent"),
             {
-                "search-agent": "search-agent",
-                "media-agent": "media-agent",
-                synthesizer: "synthesizer",
-            }
-        )
+                "search-agent": "search-agent", "media-agent": "media-agent",
+                synthesizer: "synthesizer"
+            })
 
-        // After search -> maybe media or synthesizer
-        .addConditionalEdges(
-            "search-agent",
-            routeAfterSearch,
+        .addConditionalEdges("search-agent",
+            (s) => nextInQueue(s, "search-agent"),
             {
-                "media-agent": "media-agent",
-                synthesizer: "synthesizer",
-            }
-        )
+                "notes-agent": "notes-agent", "media-agent": "media-agent",
+                synthesizer: "synthesizer"
+            })
 
-        // Media always goes straight to synthesizer
-        .addEdge("media-agent", "synthesizer")
+        .addConditionalEdges("media-agent",
+            (s) => nextInQueue(s, "media-agent"),
+            {
+                "notes-agent": "notes-agent", "search-agent": "search-agent",
+                synthesizer: "synthesizer"
+            })
 
-        // Synthesizer is terminal
-        .addEdge("synthesizer", END);
+        .addEdge("synthesizer", "memory-store")
+        .addEdge("memory-store", END);
 
     return graph.compile();
 }

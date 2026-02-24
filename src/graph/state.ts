@@ -1,6 +1,7 @@
 // Everything in LangGraph flows through a shared state
 import { BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
+import { MemoryContext } from "../lib/types";
 
 // Intent types
 export type Intent = "notes" | "search" | "media" | "hybrid" | null;
@@ -27,10 +28,16 @@ export interface MediaResult {
     channel: string;
 }
 
+export interface BrowserResult {
+    summary: string;
+    actionsCount: number;
+}
+
 export interface AgentResults {
     notes?: NoteMatch[];
     search?: SearchResult[];
     media?: MediaResult[];
+    browser?: BrowserResult;
 }
 
 // Shared LangGraph state
@@ -67,6 +74,16 @@ export const AgentState = Annotation.Root({
         reducer: (_prev, next) => next,
         default: () => "",
     }),
+
+    // Memory
+    memoryContext: Annotation<MemoryContext>({
+        reducer: (_prev, next) => next,
+        default: () => ({
+            silentContext: "",
+            explicitMemories: [],
+            hasMemory: false,
+        })
+    })
 });
 
 export type GraphState = typeof AgentState.State;
