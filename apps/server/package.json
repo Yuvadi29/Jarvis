@@ -1,0 +1,7 @@
+{
+  "name": "@jarvis/server",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc"
+  }
+}
