@@ -1,0 +1,15 @@
+{
+  "name": "@jarvis/llm",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ollama": "^0.5.14",
+    "zod": "^4.1.5"
+  }
+}
